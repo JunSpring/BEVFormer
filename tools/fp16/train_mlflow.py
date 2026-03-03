@@ -24,6 +24,8 @@ from mmseg import __version__ as mmseg_version
 
 from mmcv.utils import TORCH_VERSION, digit_version
 
+import mlflow
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('config', help='train config file path')
@@ -254,17 +256,39 @@ def main():
             CLASSES=datasets[0].CLASSES,
             PALETTE=datasets[0].PALETTE  # for segmentors
             if hasattr(datasets[0], 'PALETTE') else None)
-    # add an attribute for visualization convenience
+    
+    # 2. MLflow 설정 (실험 이름 및 기록 경로)
+    mlflow.set_tracking_uri(osp.join(cfg.work_dir, 'mlflow'))
+    experiment_name = osp.basename(args.config) # 설정 파일명이 실험 이름이 됨
+    mlflow.set_experiment(experiment_name)
+
+    # 3. MMCV MlflowLoggerHook 동적 주입
+    # config 파일의 log_config에 MLflow 훅을 추가하여 지표 자동 기록
+    if not any(h['type'] == 'MlflowLoggerHook' for h in cfg.log_config.hooks):
+        cfg.log_config.hooks.append(dict(
+            type='MlflowLoggerHook',
+            exp_name=experiment_name,
+            log_model=True,     # 학습 완료 후 모델(.pth) 자동 업로드
+            interval=10         # 10 이터레이션마다 기록
+        ))
+
+    # 4. MLflow Run 시작 및 학습 실행
     model.CLASSES = datasets[0].CLASSES
-    custom_train_model(
-        model,
-        datasets,
-        cfg,
-        eval_model=eval_model,
-        distributed=distributed,
-        validate=(not args.no_validate),
-        timestamp=timestamp,
-        meta=meta)
+    
+    with mlflow.start_run(run_name=timestamp):
+        # 하이퍼파라미터 수동 기록 (선택 사항)
+        mlflow.log_param("model_type", cfg.model.type)
+        mlflow.log_param("fp16_enabled", fp16_cfg is not None)
+        
+        custom_train_model(
+            model,
+            datasets,
+            cfg,
+            eval_model=eval_model,
+            distributed=distributed,
+            validate=(not args.no_validate),
+            timestamp=timestamp,
+            meta=meta)
 
 
 if __name__ == '__main__':

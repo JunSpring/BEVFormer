@@ -1,0 +1,2 @@
+./run_docker.sh
+python setup.py install
