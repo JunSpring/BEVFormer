@@ -54,32 +54,7 @@ RUN pip install setuptools==59.5.0
 RUN pip install mlflow==2.17.2
 RUN pip install "protobuf<4" numpy==1.19.5 numba==0.48.0 --force-reinstall
 
-RUN apt-get update && apt-get upgrade --quiet -y && apt-get install --quiet -y \
-    gosu \
-    sudo \
-    && apt-get -y autoremove \
-    && apt-get clean autoclean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 # 9. 컨테이너 접속 시 자동 설정
 RUN conda init bash && echo "conda activate open-mmlab" >> ~/.bashrc
-
-# Create user as uid 1001
-RUN useradd --shell /bin/bash -u 1001 -c "" -m user && usermod -a -G dialout user
-
-# Add user to sudoers
-RUN echo user ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/user \
-    && chmod 0440 /etc/sudoers.d/user
-
-# WORKDIR /mmdetection3d
-RUN mkdir -p /mmdetection3d
-RUN mkdir -p /BEVFormer
-RUN chown -R 1001:1001 /mmdetection3d /BEVFormer
-WORKDIR /BEVFormer
-
-# Entrypoint
-COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 CMD ["/bin/bash"]
